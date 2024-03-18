@@ -1,0 +1,10 @@
+[package]
+name = "bevy_mod_file_plugins"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy_mod_file_plugins_macros = { path = "./macros" }
+bevy = "0.13"
+syn = "2.0.53"
+proc-macro2 = "1.0.79"

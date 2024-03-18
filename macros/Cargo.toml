@@ -1,0 +1,13 @@
+[package]
+name = "bevy_mod_file_plugins_macros"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+bevy = "0.13"
+syn = "2.0.53"
+proc-macro2 = "1.0.79"
+quote = "1.0.35"
