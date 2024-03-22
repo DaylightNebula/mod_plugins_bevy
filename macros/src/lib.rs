@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
-use syn::{parse_macro_input, FnArg, Ident, ItemMod};
+use syn::{parse_macro_input, Expr, FnArg, Ident, ItemMod};
 
 #[proc_macro_attribute]
 pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
@@ -32,6 +32,8 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
     let mut startup: Vec<Ident> = Vec::new();
     let mut update: Vec<Ident> = Vec::new();
     let mut events: HashMap<Ident, Vec<Ident>> = HashMap::new();
+    let mut enters: HashMap<Expr, Vec<Ident>> = HashMap::new();
+    let mut exits: HashMap<Expr, Vec<Ident>> = HashMap::new();
 
     // assemble initial output
     for input in input.content.unwrap().1 {
@@ -80,8 +82,39 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
                                 }
                             },
 
-                            "enter" => todo!("Implement on state enter systems"),
-                            "exit" => todo!("Implement on state exit systems"),
+                            "enter" => {
+                                let kind = match &attr.meta {
+                                    syn::Meta::List(list) => {
+                                        let kind = list.tokens.clone();
+                                        let kind = kind.into();
+                                        parse_macro_input!(kind as Expr)
+                                    },
+                                    _ => panic!("Must be a meta list, example #[event(KeyboardInput)]")
+                                };
+
+                                if enters.contains_key(&kind) {
+                                    enters.get_mut(&kind).unwrap().push(name);
+                                } else {
+                                    enters.insert(kind, vec![name]);
+                                }
+                            },
+
+                            "exit" => {
+                                let kind = match &attr.meta {
+                                    syn::Meta::List(list) => {
+                                        let kind = list.tokens.clone();
+                                        let kind = kind.into();
+                                        parse_macro_input!(kind as Expr)
+                                    },
+                                    _ => panic!("Must be a meta list, example #[event(KeyboardInput)]")
+                                };
+
+                                if exits.contains_key(&kind) {
+                                    exits.get_mut(&kind).unwrap().push(name);
+                                } else {
+                                    exits.insert(kind, vec![name]);
+                                }
+                            },
                             
                             _ => {}
                         }
@@ -107,6 +140,25 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
         app_ext.extend(quote! {
             .add_systems(bevy::prelude::Startup, ((#(#startup),*)))
         });
+    }
+    if !update.is_empty() {
+        app_ext.extend(quote! {
+            .add_systems(bevy::prelude::Update, ((#(#update),*)))
+        });
+    }
+    if !enters.is_empty() {
+        for (state, systems) in enters {
+            app_ext.extend(quote! {
+                .add_systems(bevy::prelude::OnEnter(#state), ((#(#systems),*)))
+            });
+        }
+    }
+    if !exits.is_empty() {
+        for (state, systems) in exits {
+            app_ext.extend(quote! {
+                .add_systems(bevy::prelude::OnExit(#state), ((#(#systems),*)))
+            });
+        }
     }
     if !events.is_empty() {
         let mut event_groups = proc_macro2::TokenStream::new();
@@ -158,11 +210,6 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
         // add _plugin_events as update system
         app_ext.extend(quote! {
             .add_systems(bevy::prelude::Update, _plugin_events)
-        });
-    }
-    if !update.is_empty() {
-        app_ext.extend(quote! {
-            .add_systems(bevy::prelude::Update, ((#(#update),*)))
         });
     }
 

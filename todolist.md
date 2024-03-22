@@ -1,10 +1,15 @@
-[ ] Basic Systems
+[x] Basic Systems
 - [x] Startup Systems
 - [x] Update Systems
-- [ ] On State Enter Systems
-- [ ] On State Exit Systems
+- [x] On State Enter Systems
+- [x] On State Exit Systems
 [x] On Event Systems
-
-Ideas
-- Could we insert resources via metadata functions / metadata on structs
-- Cleanup systems
+[ ] Resources
+- [ ] Init via default
+- [ ] Init via factory
+- [ ] Init via system
+[ ] Auto-Initialization
+- [ ] Resources
+- [ ] Events
+- [ ] Reflection
+- [ ] States
