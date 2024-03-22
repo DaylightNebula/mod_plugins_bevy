@@ -1,15 +1,15 @@
-use std::collections::HashMap;
-
 use basic::BasicSystems;
 use events::EventSystems;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
+use resources::ResourceSystems;
 use states::{StateSystems, StateType};
 use syn::{Ident, ItemMod};
 
 mod basic;
 mod events;
+mod resources;
 mod states;
 
 #[proc_macro_attribute]
@@ -39,6 +39,7 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
     let mut basics = BasicSystems::default();
     let mut events = EventSystems::default();
     let mut states = StateSystems::default();
+    let mut resources = ResourceSystems::default();
 
     // assemble initial output
     for input in input.content.unwrap().1 {
@@ -60,6 +61,8 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
                             "event" => events.push(&mut input, &attr),
                             "enter" => states.push(StateType::Enter, &attr, name),
                             "exit" => states.push(StateType::Exit, &attr, name),
+                            "resource_factory" => resources.push_factory(name),
+                            "resource_system" => resources.push_system(name),
                             
                             _ => {}
                         }
@@ -71,9 +74,25 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
                 output.extend(quote! { #input })
             },
 
-            // syn::Item::Struct(struct_item) => {
-            //     struct_item.
-            // },
+            syn::Item::Struct(mut struct_item) => {
+                struct_item.attrs.retain(|attr| {
+                    if let Some(meta_name) = attr.path().get_ident() {
+                        let meta_name = meta_name.to_string();
+                        let meta_name = meta_name.as_str();
+
+                        match meta_name {
+                            "init_resource" => {
+                                resources.push_default(struct_item.ident.clone());
+                                false
+                            },
+
+                            _ => true
+                        }
+                    } else { true }
+                });
+
+                output.extend(quote! { #struct_item })
+            },
             
             // by default, just add to the output
             _ => output.extend(quote! { #input })
@@ -85,6 +104,7 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
     basics.append(&mut app_ext);
     states.append(&mut app_ext);
     events.append(&mut output, &mut app_ext);
+    resources.append(&mut output, &mut app_ext);
 
     // compile final plugin output
     output.extend(quote! {

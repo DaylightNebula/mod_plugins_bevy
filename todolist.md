@@ -4,12 +4,12 @@
 - [x] On State Enter Systems
 - [x] On State Exit Systems
 [x] On Event Systems
-[ ] Auto-Init Resources
-- [ ] Init via default
-- [ ] Init via factory
-- [ ] Init via system
+[x] Auto-Init Resources
+- [x] Init via default
+- [x] Init via factory
+- [x] Init via system
 [ ] Auto-Initialization
-- [ ] Resources
+- [x] Resources
 - [ ] Events
 - [ ] Reflection
 - [ ] States

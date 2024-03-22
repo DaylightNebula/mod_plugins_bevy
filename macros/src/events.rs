@@ -44,7 +44,7 @@ impl EventSystems {
                             for event in &events {
                                 world.insert_resource(mod_plugins::resources::Current(event.clone()));
     
-                                let mut system = IntoSystem::into_system(#system);
+                                let mut system = bevy::prelude::IntoSystem::into_system(#system);
                                 system.initialize(world);
                                 system.run((), world);
                                 system.apply_deferred(world);
@@ -74,7 +74,7 @@ impl EventSystems {
             // add _plugin_events system to output
             output.extend(quote! {
                 fn _plugin_events(
-                    world: &mut World
+                    world: &mut bevy::prelude::World
                 ) {
                     #event_groups
                 }
