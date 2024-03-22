@@ -71,8 +71,9 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
                 output.extend(quote! { #input })
             },
 
-            // syn::Item::Struct(_) => todo!(),
-            // syn::Item::Use(_) => todo!(),
+            // syn::Item::Struct(struct_item) => {
+            //     struct_item.
+            // },
             
             // by default, just add to the output
             _ => output.extend(quote! { #input })
