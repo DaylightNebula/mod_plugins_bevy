@@ -42,7 +42,7 @@ impl EventSystems {
                     systems.extend(quote! {
                         {
                             for event in &events {
-                                world.insert_resource(mod_plugins::resources::Current(event.clone()));
+                                world.insert_resource(mod_plugins::resources::Current::new(event.clone()));
     
                                 let mut system = bevy::prelude::IntoSystem::into_system(#system);
                                 system.initialize(world);

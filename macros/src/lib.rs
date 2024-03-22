@@ -6,7 +6,7 @@ use proc_macro2::Span;
 use quote::quote;
 use resources::ResourceSystems;
 use states::{StateSystems, StateType};
-use syn::{Ident, ItemMod};
+use syn::{parse_macro_input, FnArg, Ident, ItemFn, ItemMod, Type};
 
 mod basic;
 mod events;
@@ -195,4 +195,41 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
     });
 
     output.into()
+}
+
+#[proc_macro_attribute]
+pub fn executable(attr: TokenStream, input: TokenStream) -> TokenStream {
+    let ident = parse_macro_input!(attr as Ident);
+    let mut func = parse_macro_input!(input as ItemFn);
+    let sig = &mut func.sig;
+    let name = &sig.ident;
+
+    // add current arg
+    let current = quote! { current: Res<mod_plugins::resources::Current<Box<#ident>>> };
+    let current = TokenStream::from(current);
+    sig.inputs.push(parse_macro_input!(current as FnArg));
+
+    // get return type with hacky workaround for ()
+    let empty = Box::new(Type::Verbatim(quote! { () }));
+    let ret = match &sig.output {
+        syn::ReturnType::Default => &empty,
+        syn::ReturnType::Type(_, b) => b,
+    };
+
+    TokenStream::from(quote! {
+        impl mod_plugins::resources::Executable<#ret> for #ident {
+            fn execute(self: Box<Self>, world: &mut bevy::prelude::World) -> #ret {
+                let mut system = bevy::prelude::IntoSystem::into_system(#name);
+                world.insert_resource(mod_plugins::resources::Current::new(self));
+                system.initialize(world);
+                let response = system.run((), world);
+                system.apply_deferred(world);
+                world.remove_resource::<mod_plugins::resources::Current<Self>>();
+        
+                response
+            }
+        }
+
+        #func
+    })
 }

@@ -66,7 +66,7 @@ mod test_plugin {
         state: Res<State<TestState>>,
         mut next_state: ResMut<NextState<TestState>>
     ) {
-        if current.0.key_code == KeyCode::Space && current.0.state == ButtonState::Released {
+        if current.key_code == KeyCode::Space && current.state == ButtonState::Released {
             match state.get() {
                 TestState::Red => next_state.set(TestState::Blue),
                 TestState::Blue => next_state.set(TestState::Red)
