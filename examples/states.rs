@@ -1,22 +1,8 @@
 use bevy::prelude::*;
 use mod_plugins::macros::*;
 
-#[derive(States, Clone, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
-enum TestState {
-    #[default]
-    Red,
-    Blue
-}
-
-#[derive(Component)]
-struct Red;
-
-#[derive(Component)]
-struct Blue;
-
 fn main() {
     App::new()
-        .init_state::<TestState>()
         .add_plugins((DefaultPlugins, TestPlugin))
         .run();
 }
@@ -24,6 +10,20 @@ fn main() {
 #[plugin]
 mod test_plugin {
     use bevy::input::{keyboard::KeyboardInput, ButtonState};
+
+    #[init_state]
+    #[derive(States, Clone, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
+    enum TestState {
+        #[default]
+        Red,
+        Blue
+    }    
+
+    #[derive(Component)]
+    struct Red;
+    
+    #[derive(Component)]
+    struct Blue;
 
     #[startup]
     fn setup(
@@ -54,6 +54,11 @@ mod test_plugin {
             transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
         });
+    }
+
+    #[build]
+    fn build_test(app: &mut App) {
+        println!("App {app:#?}");
     }
 
     #[event(KeyboardInput)]

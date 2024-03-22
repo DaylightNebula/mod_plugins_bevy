@@ -1,5 +1,6 @@
 use basic::BasicSystems;
 use events::EventSystems;
+use initialization::InitializationSystems;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
@@ -9,6 +10,7 @@ use syn::{Ident, ItemMod};
 
 mod basic;
 mod events;
+mod initialization;
 mod resources;
 mod states;
 
@@ -36,10 +38,12 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
 
     // setup some stuff for compute and output
     let mut output = proc_macro2::TokenStream::new();
+    let mut init = InitializationSystems::default();
     let mut basics = BasicSystems::default();
     let mut events = EventSystems::default();
     let mut states = StateSystems::default();
     let mut resources = ResourceSystems::default();
+    let mut build_funcs = Vec::new();
 
     // assemble initial output
     for input in input.content.unwrap().1 {
@@ -63,6 +67,7 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
                             "exit" => states.push(StateType::Exit, &attr, name),
                             "resource_factory" => resources.push_factory(name),
                             "resource_system" => resources.push_system(name),
+                            "build" => build_funcs.push(name),
                             
                             _ => {}
                         }
@@ -75,16 +80,41 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
             },
 
             syn::Item::Struct(mut struct_item) => {
+                // go through each attribute, choosing whether we should keep it or not (Rust how no idea what our custom attributes are and will cancel)
                 struct_item.attrs.retain(|attr| {
+                    // attempt to get the attributes path as its identifier, otherwise, return keep
                     if let Some(meta_name) = attr.path().get_ident() {
+                        // unpack attribute metadata name
                         let meta_name = meta_name.to_string();
                         let meta_name = meta_name.as_str();
 
+                        // attempt to match attribute name, otherwise, return keep
                         match meta_name {
+                            // make the resource initialize by its default in the App
                             "init_resource" => {
                                 resources.push_default(struct_item.ident.clone());
                                 false
                             },
+
+                            "init_event" => {
+                                init.events.push(struct_item.ident.clone());
+                                false
+                            }
+
+                            "init_state" => {
+                                if let Ok(list) = attr.meta.require_list() {
+                                    init.states_nodef.push(syn::parse2(list.tokens.clone()).unwrap());
+                                } else {
+                                    init.states_def.push(struct_item.ident.clone());
+                                }
+
+                                false
+                            }
+
+                            "register" => {
+                                init.registered.push(struct_item.ident.clone());
+                                false
+                            }
 
                             _ => true
                         }
@@ -92,6 +122,51 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
                 });
 
                 output.extend(quote! { #struct_item })
+            },
+
+            syn::Item::Enum(mut enum_item) => {
+                // go through each attribute, choosing whether we should keep it or not (Rust how no idea what our custom attributes are and will cancel)
+                enum_item.attrs.retain(|attr| {
+                    // attempt to get the attributes path as its identifier, otherwise, return keep
+                    if let Some(meta_name) = attr.path().get_ident() {
+                        // unpack attribute metadata name
+                        let meta_name = meta_name.to_string();
+                        let meta_name = meta_name.as_str();
+
+                        // attempt to match attribute name, otherwise, return keep
+                        match meta_name {
+                            // make the resource initialize by its default in the App
+                            "init_resource" => {
+                                resources.push_default(enum_item.ident.clone());
+                                false
+                            },
+
+                            "init_event" => {
+                                init.events.push(enum_item.ident.clone());
+                                false
+                            }
+
+                            "init_state" => {
+                                if let Ok(list) = attr.meta.require_list() {
+                                    init.states_nodef.push(syn::parse2(list.tokens.clone()).unwrap());
+                                } else {
+                                    init.states_def.push(enum_item.ident.clone());
+                                }
+
+                                false
+                            }
+
+                            "register" => {
+                                init.registered.push(enum_item.ident.clone());
+                                false
+                            }
+
+                            _ => true
+                        }
+                    } else { true }
+                });
+
+                output.extend(quote! { #enum_item });
             },
             
             // by default, just add to the output
@@ -102,6 +177,7 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
     // compile app extensions
     let mut app_ext = proc_macro2::TokenStream::new();
     basics.append(&mut app_ext);
+    init.append(&mut app_ext);
     states.append(&mut app_ext);
     events.append(&mut output, &mut app_ext);
     resources.append(&mut output, &mut app_ext);
@@ -112,6 +188,8 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
         impl bevy::prelude::Plugin for #struct_name {
             fn build(&self, app: &mut bevy::prelude::App) {
                 app #app_ext;
+
+                #(#build_funcs(app);)*
             }
         }
     });

@@ -8,9 +8,10 @@
 - [x] Init via default
 - [x] Init via factory
 - [x] Init via system
-[ ] Auto-Initialization
+[x] Auto-Initialization
 - [x] Resources
-- [ ] Events
-- [ ] Reflection
-- [ ] States (Default + Non Default)
+- [x] Events (Enums and Structs)
+- [x] Reflection (Enums and Structs)
+- [x] States (Default + Non Default)
 [ ] Executables
+[ ] Build functions that directly add to app
