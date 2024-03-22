@@ -9,7 +9,7 @@ fn main() {
 
 #[plugin]
 mod test_plugin {
-    use bevy::input::keyboard::KeyboardInput;
+    use bevy::input::{keyboard::KeyboardInput, mouse::MouseButtonInput};
 
     #[startup]
     fn setup(
@@ -53,5 +53,15 @@ mod test_plugin {
     #[event(KeyboardInput)]
     fn keyboard_input() {
         println!("Input {current:?}");
+    }
+
+    #[event(KeyboardInput)]
+    fn keyboard_input2() {
+        println!("Input2 {current:?}");
+    }
+
+    #[event(MouseButtonInput)]
+    fn mouse_input() {
+        println!("Mouse Button Input {current:?}");
     }
 }
