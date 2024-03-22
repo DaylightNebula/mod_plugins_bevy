@@ -79,6 +79,9 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
                                     events.insert(event, vec![name]);
                                 }
                             },
+
+                            "enter" => todo!("Implement on state enter systems"),
+                            "exit" => todo!("Implement on state exit systems"),
                             
                             _ => {}
                         }
