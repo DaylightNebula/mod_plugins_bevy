@@ -14,4 +14,4 @@
 - [x] Reflection (Enums and Structs)
 - [x] States (Default + Non Default)
 [ ] Executables
-[ ] Build functions that directly add to app
+[x] Build functions that directly add to app
