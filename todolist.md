@@ -4,7 +4,7 @@
 - [x] On State Enter Systems
 - [x] On State Exit Systems
 [x] On Event Systems
-[ ] Resources
+[ ] Auto-Init Resources
 - [ ] Init via default
 - [ ] Init via factory
 - [ ] Init via system
