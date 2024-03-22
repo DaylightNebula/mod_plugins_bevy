@@ -1,12 +1,25 @@
 use proc_macro::TokenStream;
+use proc_macro2::Span;
 use quote::quote;
 use syn::{parse_macro_input, Ident, ItemMod};
 
 #[proc_macro_attribute]
-pub fn file_plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
+pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
     // unpack
     let input = parse_macro_input!(input as ItemMod);
-    let struct_name = parse_macro_input!(attr as Ident);
+    let struct_name = if attr.is_empty() {
+        let name = input.ident.to_string();
+        let struct_name = name.to_string()
+            .split("_")
+            .map(|token| {
+                let mut chars: Vec<char> = token.chars().collect();
+                chars[0] = chars[0].to_uppercase().nth(0).unwrap();
+                chars.into_iter().collect()
+            }).collect::<Vec<String>>().join("");
+        Ident::new(struct_name.as_str(), Span::call_site())
+    } else {
+        parse_macro_input!(attr as Ident)
+    };
     let mut output = TokenStream::new();
 
     let mut startup: Vec<Ident> = Vec::new();
