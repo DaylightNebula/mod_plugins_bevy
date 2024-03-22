@@ -1,5 +1,5 @@
 [package]
-name = "bevy_mod_file_plugins_macros"
+name = "mod_plugins_macros"
 version = "0.1.0"
 edition = "2021"
 

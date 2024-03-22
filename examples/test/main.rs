@@ -1,15 +1,16 @@
 use bevy::prelude::*;
-use bevy_mod_file_plugins_macros::plugin;
+use mod_plugins::macros::*;
 
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, TestPlugin))
-        // .add_systems(Startup, setup)
         .run();
 }
 
 #[plugin]
 mod test_plugin {
+    use bevy::input::keyboard::KeyboardInput;
+
     #[startup]
     fn setup(
         mut commands: Commands,
@@ -50,9 +51,7 @@ mod test_plugin {
     }
 
     #[event(KeyboardInput)]
-    fn keyboard_input(
-
-    ) {
-
+    fn keyboard_input() {
+        println!("Input {current:?}");
     }
 }

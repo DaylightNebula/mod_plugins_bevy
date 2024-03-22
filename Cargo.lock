@@ -709,26 +709,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bevy_mod_file_plugins"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "bevy_mod_file_plugins_macros",
- "proc-macro2",
- "syn 2.0.53",
-]
-
-[[package]]
-name = "bevy_mod_file_plugins_macros"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "proc-macro2",
- "quote",
- "syn 2.0.53",
-]
-
-[[package]]
 name = "bevy_pbr"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2333,6 +2313,37 @@ checksum = "9d811f3e15f28568be3407c8e7fdb6514c1cda3cb30683f15b6a1a1dc4ea14a7"
 dependencies = [
  "adler",
  "simd-adler32",
+]
+
+[[package]]
+name = "mod_plugins"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "mod_plugins_macros",
+ "mod_plugins_resources",
+ "proc-macro2",
+ "syn 2.0.53",
+]
+
+[[package]]
+name = "mod_plugins_macros"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.53",
+]
+
+[[package]]
+name = "mod_plugins_resources"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.53",
 ]
 
 [[package]]

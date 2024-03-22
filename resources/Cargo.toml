@@ -1,11 +1,10 @@
 [package]
-name = "mod_plugins"
+name = "mod_plugins_resources"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-mod_plugins_macros = { path = "./macros" }
-mod_plugins_resources = { path = "./resources" }
 bevy = "0.13"
 syn = "2.0.53"
 proc-macro2 = "1.0.79"
+quote = "1.0.35"

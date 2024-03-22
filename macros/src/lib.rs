@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
-use syn::{parse_macro_input, Ident, ItemMod};
+use syn::{parse_macro_input, FnArg, Ident, ItemMod};
 
 #[proc_macro_attribute]
 pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
@@ -66,6 +66,11 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
                                     _ => panic!("Must be a meta list, example #[event(KeyboardInput)]")
                                 };
 
+                                // add current to function
+                                let current = quote! { current: Res<mod_plugins::resources::Current<#event>> };
+                                let current = TokenStream::from(current);
+                                input.sig.inputs.push(parse_macro_input!(current as FnArg));
+
                                 // if we already have the event identifier in our map, simply add the system to the corresponding vector, 
                                 // otherwise, insert the event and create a new vector with the system
                                 if events.contains_key(&event) {
@@ -101,14 +106,49 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
         });
     }
     if !events.is_empty() {
-        let event_keys = events.keys();
+        let mut event_groups = proc_macro2::TokenStream::new();
+        for (event, vec) in events.iter() {
+            // run through each system, run each event on each system
+            let mut systems = proc_macro2::TokenStream::new();
+            for system in vec {
+                systems.extend(quote! {
+                    {
+                        for event in &events {
+                            world.insert_resource(mod_plugins::resources::Current(event.clone()));
+
+                            let mut system = IntoSystem::into_system(#system);
+                            system.initialize(world);
+                            system.run((), world);
+                            system.apply_deferred(world);
+                        }
+                    }
+                });
+            }
+
+            // read all events, run the above systems, and cleanup
+            event_groups.extend(quote! {
+                {
+                    // read all events as a Vec<&{event}>
+                    let events: Vec<#event> = {
+                        let events = world.resource::<bevy::prelude::Events<#event>>();
+                        let mut reader = events.get_reader();
+                        reader.read(&events).map(|a| a.clone()).collect()
+                    };
+
+                    // run systems
+                    #systems
+
+                    world.remove_resource::<mod_plugins::resources::Current<#event>>();
+                }
+            });
+        }
 
         // add _plugin_events system to output
         output.extend(quote! {
             fn _plugin_events(
                 world: &mut World
             ) {
-
+                #event_groups
             }
         });
 
