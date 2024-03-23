@@ -2329,6 +2329,8 @@ dependencies = [
 [[package]]
 name = "mod_plugins_macros"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0a81bd358921009cadeed4ab3ab9392f4033afec5e83e7818d4aa0a3f4497866"
 dependencies = [
  "bevy",
  "proc-macro2",
@@ -2339,6 +2341,8 @@ dependencies = [
 [[package]]
 name = "mod_plugins_resources"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f8ec4ae94896081fdf88ecacc8227a6241b58ee28247bb4a68a8a0fd9acba25"
 dependencies = [
  "bevy",
  "proc-macro2",
