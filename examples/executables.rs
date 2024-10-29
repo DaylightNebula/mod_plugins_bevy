@@ -62,7 +62,7 @@ mod test_plugin {
 
     #[startup]
     fn use_cube(world: &mut World) {
-        let cube = Box::new(Cube(Color::rgb_u8(124, 255, 124)));
+        let cube = Box::new(Cube(Color::srgb_u8(124, 255, 124)));
         cube.execute(world);
     }
 }
