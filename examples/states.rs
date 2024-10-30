@@ -57,7 +57,7 @@ mod test_plugin {
     }
 
     #[build]
-    fn build_test(app: &mut App) {
+    fn build_test(&self, app: &mut App) {
         println!("App {app:#?}");
     }
 

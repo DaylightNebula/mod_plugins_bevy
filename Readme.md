@@ -1,4 +1,4 @@
-# File Plugins for Bevy
+# Module Plugins for Bevy
 This is an experiment/project in removing more boilerplate from the Bevy game engine plugins system.  While the plugins system does not have much boiler plate, this is an experiment in reducing it even more using an attribute macro.  This is achieved by applying the `plugin` attribute macro to a `mod` module in your code, the `mod` block is effectively removed and a plugin in generated.  Here is an example of this:
 
 ```rust

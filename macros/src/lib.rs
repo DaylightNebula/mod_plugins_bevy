@@ -43,14 +43,18 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
     let mut events = EventSystems::default();
     let mut states = StateSystems::default();
     let mut resources = ResourceSystems::default();
-    let mut build_funcs = Vec::new();
+    let mut build_funcs = Vec::<syn::Ident>::new();
+    let mut fields = Vec::<syn::Field>::new();
+    let mut std_impl = proc_macro2::TokenStream::new();
 
     // assemble initial output
     for input in input.content.unwrap().1 {
+        println!("Found input {input:?}");
         match input {
             // add function to output while using metadata to interpret if and which type of system this function is
             syn::Item::Fn(mut input) => {
                 // for each attribute on the function, check its metadata from its identifier
+                let mut add_to_std_impl = false;
                 for attr in input.attrs.clone() {
                     if let Some(meta_name) = attr.path().get_ident() {
                         // get metadata name
@@ -67,7 +71,10 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
                             "exit" => states.push(StateType::Exit, &attr, name),
                             "resource_factory" => resources.push_factory(name),
                             "resource_system" => resources.push_system(name),
-                            "build" => build_funcs.push(name),
+                            "build" => {
+                                add_to_std_impl = true; 
+                                build_funcs.push(name)
+                            },
                             
                             _ => {}
                         }
@@ -76,7 +83,8 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
 
                 // add the function to the output
                 input.attrs.clear();
-                output.extend(quote! { #input })
+                if !add_to_std_impl { output.extend(quote! { #input }); }
+                else { std_impl.extend(quote! { #input }); }
             },
 
             syn::Item::Struct(mut struct_item) => {
@@ -168,9 +176,40 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
 
                 output.extend(quote! { #enum_item });
             },
+
+            syn::Item::Type(type_item) => {
+                let mut passthrough = true;
+
+                if !type_item.attrs.is_empty() {
+                    if let Some(meta_name) = (&type_item.attrs[0]).path().get_ident() {
+                        match meta_name.to_string().as_str() {
+                            "field" => {
+                                passthrough = false;
+                                let vis = &type_item.vis;
+                                let ident = &type_item.ident;
+                                let ty = &type_item.ty;
+                                fields.push(syn::Field {
+                                    attrs: vec![],
+                                    vis: vis.clone(),
+                                    mutability: syn::FieldMutability::None,
+                                    ident: Some(ident.clone()),
+                                    colon_token: Some(syn::token::Colon::default()),
+                                    ty: *ty.clone()
+                                });
+                            }
+
+                            _ => {}
+                        }
+                    }
+                }
+
+                if passthrough { output.extend(quote! { #type_item }) }
+            }
             
             // by default, just add to the output
-            _ => output.extend(quote! { #input })
+            _ => {
+                output.extend(quote! { #input });
+            }
         }
     }
 
@@ -182,15 +221,28 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
     events.append(&mut output, &mut app_ext);
     resources.append(&mut output, &mut app_ext);
 
+    // compile after struct
+    let after_struct = if fields.is_empty() { quote! { ; } } else {
+        quote! {
+            {
+                #(#fields),*
+            }
+        }
+    };
+
     // compile final plugin output
     output.extend(quote! {
-        pub struct #struct_name;
+        pub struct #struct_name #after_struct
         impl bevy::prelude::Plugin for #struct_name {
             fn build(&self, app: &mut bevy::prelude::App) {
+                #(self.#build_funcs(app);)*
+                
                 app #app_ext;
-
-                #(#build_funcs(app);)*
             }
+        }
+
+        impl #struct_name {
+            #std_impl
         }
     });
 
