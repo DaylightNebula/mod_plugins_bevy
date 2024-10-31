@@ -79,6 +79,12 @@ impl SystemProcessor {
         self.definitions.push((definition, item.sig.ident.clone()));
         item_list.push(item);
     }
+
+    pub fn apply_app_exts(&self, app_exts: &mut TokenStream) { todo!() }
+    pub fn apply_build(&self, builds: &mut TokenStream) { todo!() }
+
+    pub fn impl_functions(&self) -> &[ItemFn] { return &self.impl_functions; }
+    pub fn base_functions(&self) -> &[ItemFn] { return &self.base_functions; }
 }
 
 fn build_system_enum_variant(tokens: &[String]) -> FunctionDef {
