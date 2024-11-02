@@ -1,11 +1,7 @@
-use basic::BasicSystems;
-use events::EventSystems;
 use initialization::InitializationSystems;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
-use resources::ResourceSystems;
-use states::{StateSystems, StateType};
 use syn::{parse_macro_input, FnArg, Ident, ItemFn, ItemMod, Type};
 use systems::SystemProcessor;
 
@@ -218,12 +214,21 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
     }
 
     // compile app extensions
+    let mut builds = proc_macro2::TokenStream::new();
     let mut app_ext = proc_macro2::TokenStream::new();
-    // basics.append(&mut app_ext);
+    let mut impl_funcs = proc_macro2::TokenStream::new();
+    let mut base_funcs = proc_macro2::TokenStream::new();
     init.append(&mut app_ext);
-    // states.append(&mut app_ext);
-    // events.append(&mut output, &mut app_ext);
-    // resources.append(&mut output, &mut app_ext);
+
+    // apply systems
+    systems.apply_build(&mut builds);
+    systems.apply_app_exts(&mut app_ext);
+    for impl_func in systems.impl_functions().iter() {
+        impl_funcs.extend(quote! { #impl_func });
+    }
+    for base_func in systems.base_functions().iter() {
+        base_funcs.extend(quote! { #base_func });
+    }
 
     // compile after struct
     let after_struct = if fields.is_empty() { quote! { ; } } else {
@@ -239,15 +244,17 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
         pub struct #struct_name #after_struct
         impl bevy::prelude::Plugin for #struct_name {
             fn build(&self, app: &mut bevy::prelude::App) {
-                // #(self.#build_funcs(app);)*
+                #builds
                 
                 app #app_ext;
             }
         }
 
         impl #struct_name {
-            // #std_impl
+            #impl_funcs
         }
+
+        #base_funcs
     });
 
     output.into()
