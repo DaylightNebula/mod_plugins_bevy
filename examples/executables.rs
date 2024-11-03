@@ -79,4 +79,11 @@ mod test_plugin {
         let cube = Box::new(Cube(Color::srgb_u8(124, 255, 124)));
         cube.execute(world);
     }
+
+    #[update]
+    #[query(&mut Transform, With<Visibility>)]
+    #[on(query1)]
+    fn test_cube() {
+        println!("found {query1:?}");
+    }
 }

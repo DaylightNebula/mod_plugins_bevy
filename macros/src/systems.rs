@@ -35,6 +35,7 @@ impl SystemProcessor {
     pub fn process_item_fn(&mut self, mut item: ItemFn) {
         // define default function type
         let mut definition = FunctionDef::Impl;
+        let mut query_count = 1;
 
         // run through each attribute to modify the existing function
         for attr in item.attrs.clone() {
@@ -166,6 +167,82 @@ impl SystemProcessor {
                         } 
                     },
                     _ => panic!("Priority attribute can only be applied to systems!")
+                }
+
+                "query" => {
+                    // build query tokens by splitting my commas and merging
+                    // then, sort tokens into query and filter
+                    let (mut query, mut filter): (Vec<_>, Vec<_>) = tokens
+                        .split(|s| s == ",")
+                        .map(|a| a.join(" "))
+                        .partition(|a| {
+                            !(
+                                a.starts_with("With <") || 
+                                a.starts_with("Without <") || 
+                                a.starts_with("Added <") || 
+                                a.starts_with("Removed <") || 
+                                a.starts_with("Changed <")
+                            )
+                        });
+                    
+                    // get some metadata
+                    let ident = Ident::new(format!("query{query_count}").as_str(), Span::call_site());
+                    let mutable = query.iter().any(|s| s.contains("& mut"));
+
+                    // set query and filter
+                    let query = query.drain(..).map(|a| syn::parse2::<syn::Type>(a.parse().unwrap()).unwrap()).collect::<Vec<_>>();
+                    let filter = filter.drain(..).map(|a| syn::parse2::<syn::Type>(a.parse().unwrap()).unwrap()).collect::<Vec<_>>();
+                    
+                    // stop if query empty
+                    if query.is_empty() { continue; }
+
+                    // add query arguments
+                    if filter.is_empty() {
+                        if mutable {
+                            item.sig.inputs.push(syn::parse2(quote! {
+                                mut #ident: Query<(#(#query),*)>
+                            }).unwrap());
+                        } else {
+                            item.sig.inputs.push(syn::parse2(quote! {
+                                #ident: Query<(#(#query),*)>
+                            }).unwrap());
+                        }
+                    } else {
+                        if mutable {
+                            item.sig.inputs.push(syn::parse2(quote! {
+                                mut #ident: Query<(#(#query),*), (#(#filter),*)>
+                            }).unwrap());
+                        } else {
+                            item.sig.inputs.push(syn::parse2(quote! {
+                                #ident: Query<(#(#query),*), (#(#filter),*)>
+                            }).unwrap());
+                        }
+                    }
+
+                    query_count += 1;
+                }
+
+                "on" => {
+                    let mutable = tokens.iter().any(|a| a == "mut");
+                    let ident = Ident::new(tokens.last().unwrap().as_str(), Span::call_site());
+                    let block = item.block;
+                    if mutable {
+                        item.block = syn::parse2(quote! {
+                            {
+                                for #ident in #ident.iter_mut() {
+                                    #block
+                                }
+                            }
+                        }).unwrap();
+                    } else {
+                        item.block = syn::parse2(quote! {
+                            {
+                                for #ident in #ident.iter() {
+                                    #block
+                                }
+                            }
+                        }).unwrap();
+                    }
                 }
 
                 _ => panic!("Unknown plugin attribute {:?}", attr_name)
