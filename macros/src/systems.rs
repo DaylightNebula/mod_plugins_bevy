@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use convert_case::{Case, Casing};
 use proc_macro2::{Span, TokenStream, TokenTree};
 use syn::{Expr, Ident, ItemFn, Meta};
 use quote::quote;
@@ -39,7 +40,7 @@ impl SystemProcessor {
         // run through each attribute to modify the existing function
         for attr in item.attrs.clone() {
             // get the attribute name (yes its ugly, welcome to Rust)
-            let attr_name = attr.path().get_ident().unwrap();
+            let attr_name = attr.path().get_ident().expect("Failed to unwrap attr_name");
             let attr_name = attr_name.to_string();
             let attr_name = attr_name.as_str();
             let tokens = meta_to_strings(attr.meta);
@@ -48,22 +49,75 @@ impl SystemProcessor {
             let (attr_name, tokens) = match attr_name {
                 "startup" => ("system", vec!["startup".to_string()]),
                 "update" => ("system", vec!["update".to_string()]),
-                "enter" => ("system", vec!["enter".to_string(), tokens[0].clone()]),
-                "exit" => ("system", vec!["exit".to_string(), tokens[0].clone()]),
-                "event" => {
-                    let event = Ident::new(tokens[0].as_str(), Span::call_site());
-                    item.attrs.push(syn::parse_quote! { #[event(#event)] });
-                    ("system", vec!["update".to_string()])
+
+                "enter" => {
+                    let mut vec = vec!["enter".to_string()];
+                    vec.extend(tokens);
+                    ("system", vec)
+                },
+
+                "exit" => {
+                    let mut vec = vec!["exit".to_string()];
+                    vec.extend(tokens);
+                    ("system", vec)
                 },
                 _ => (attr_name, tokens)
             };
 
             // match attribute name to operation
             match attr_name {
-                "system" => { definition = build_system_enum_variant(&tokens); }
                 "build" => { definition = FunctionDef::Build; }
                 "resource_factory" => { definition = FunctionDef::ResourceFactory; }
                 "resource_system" => { definition = FunctionDef::ResourceSystem; }
+
+                "system" => {
+                    definition = build_system_enum_variant(&tokens);
+                    let exec = tokens[0].to_string();
+                    let exec = exec.as_str();
+
+                    if exec == "enter" || exec == "exit" {
+                        let input = tokens[1].to_string();
+                        // let mut vec = input.split("::").collect::<Vec<_>>();
+                        // vec.remove(vec.len() - 1);
+                        // let join = vec.join("::");
+                        // let state: TokenStream = join.parse().expect("Could not to join ::");
+                        // let state: Expr = syn::parse2(state).expect(format!("Failed to create expresion from join result. {join:?} {vec:?} {input:?}").as_str());
+                        let input = Ident::new(input.as_str(), Span::call_site());
+                        item.sig.inputs.push(syn::parse2(quote! {
+                            current: Res<State<#input>>
+                        }).unwrap());
+                    }
+                }
+
+                "event" => {
+                    // if def has not been set yet, set to update
+                    if matches!(definition, FunctionDef::Impl) {
+                        definition = FunctionDef::System(
+                            syn::parse2(quote! { Update }).expect("Failed to unwrap Update arg."), 
+                            Priority::NORMAL
+                        );
+                    }
+
+                    // get event names and argument names
+                    let event_name = tokens[0].clone();
+                    let event_arg = Ident::new(event_name.to_case(Case::Snake).as_str(), Span::call_site());
+                    let event = Ident::new(event_name.as_str(), Span::call_site());
+                    
+                    // add argument for event
+                    item.sig.inputs.push(syn::parse2(quote! {
+                        mut #event_arg: EventReader<#event>
+                    }).expect("Failed to unwrap event argument."));
+
+                    // add test for event
+                    let block = item.block;
+                    item.block = syn::parse2(quote! {
+                        {
+                            for #event_arg in #event_arg.read() {
+                                #block
+                            }
+                        }
+                    }).expect("Failed to unwrap event block.");
+                }
 
                 "priority" => match definition {
                     FunctionDef::System(_, ref mut prio) => { 
@@ -109,7 +163,7 @@ impl SystemProcessor {
                 // add systems to systems tracking map
                 FunctionDef::System(expr, priority) => {
                     if systems.contains_key(&expr) {
-                        systems.get_mut(&expr).unwrap().push((*priority, name.clone()));
+                        systems.get_mut(&expr).expect("Failed to unwrap systems get.").push((*priority, name.clone()));
                     } else {
                         systems.insert(expr.clone(), vec![(*priority, name.clone())]);
                     }
@@ -150,15 +204,17 @@ impl SystemProcessor {
 
 fn build_system_enum_variant(tokens: &[String]) -> FunctionDef {
     let expr: syn::Expr = match tokens[0].as_str() {
-        "update" => syn::parse2(quote! { Update }).unwrap(),
-        "startup" => syn::parse2(quote! { Startup }).unwrap(),
+        "update" => syn::parse2(quote! { Update }).expect("Failed to unwrap Update system expr."),
+        "startup" => syn::parse2(quote! { Startup }).expect("Failed to unwrap Startup system expr."),
         "enter" => {
-            let state = Ident::new(tokens[1].as_str(), Span::call_site());
-            syn::parse2(quote! { OnEnter(#state) }).unwrap()
+            let state = tokens[1..].join("");
+            let state: Expr = syn::parse2(state.parse().unwrap()).unwrap();
+            syn::parse2(quote! { OnEnter(#state) }).expect("Failed to unwrap OnEnter system expr.")
         }
         "exit" => {
-            let state = Ident::new(tokens[1].as_str(), Span::call_site());
-            syn::parse2(quote! { OnExit(#state) }).unwrap()
+            let state = tokens[1..].join("");
+            let state: Expr = syn::parse2(state.parse().unwrap()).unwrap();
+            syn::parse2(quote! { OnExit(#state) }).expect("Failed to unwrap OnExit system expr.")
         }
         _ => panic!("Unknown build system type {:?}", tokens[0])
     };
@@ -179,6 +235,6 @@ fn tokens_to_strings(tokens: TokenStream) -> Vec<String> {
             TokenTree::Ident(ident) => Some(vec![ident.to_string()]),
             TokenTree::Literal(literal) => Some(vec![literal.to_string()]),
             TokenTree::Group(group) => Some(tokens_to_strings(group.stream())),
-            _ => None
+            TokenTree::Punct(punct) => Some(vec![punct.to_string()])
         }).flatten().collect();
 }

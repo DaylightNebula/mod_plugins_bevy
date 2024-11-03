@@ -1,10 +1,24 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, render::{settings::{Backends, RenderCreation, WgpuSettings}, RenderPlugin}};
 use mod_plugins::macros::*;
 
 fn main() {
+    let mut backends = Backends::all();
+    backends.remove(Backends::DX12);
+
     App::new()
-        .add_plugins((DefaultPlugins, TestPlugin))
-        .run();
+        // set render backends
+        .add_plugins(DefaultPlugins.set(RenderPlugin {
+            render_creation: RenderCreation::Automatic(
+                WgpuSettings {
+                    backends: Some(backends),
+                    ..Default::default()
+                }
+            ),
+            ..Default::default()
+        }))
+
+        // add test and run
+        .add_plugins(TestPlugin).run();
 }
 
 #[derive(Clone, Debug)]

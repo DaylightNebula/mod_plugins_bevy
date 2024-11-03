@@ -1,16 +1,28 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, input::{keyboard::KeyboardInput, mouse::MouseButtonInput}, render::{settings::{Backends, RenderCreation, WgpuSettings}, RenderPlugin}};
 use mod_plugins::macros::*;
 
 fn main() {
+    let mut backends = Backends::all();
+    backends.remove(Backends::DX12);
+
     App::new()
-        .add_plugins((DefaultPlugins, TestPlugin))
-        .run();
+        // set render backends
+        .add_plugins(DefaultPlugins.set(RenderPlugin {
+            render_creation: RenderCreation::Automatic(
+                WgpuSettings {
+                    backends: Some(backends),
+                    ..Default::default()
+                }
+            ),
+            ..Default::default()
+        }))
+
+        // add test and run
+        .add_plugins(TestPlugin).run();
 }
 
 #[plugin]
 mod test_plugin {
-    use bevy::input::{keyboard::KeyboardInput, mouse::MouseButtonInput};
-
     #[startup]
     fn setup(
         mut commands: Commands,
@@ -51,17 +63,17 @@ mod test_plugin {
     }
 
     #[event(KeyboardInput)]
-    fn keyboard_input() {
-        println!("Input {current:?}");
+    fn keyboard_input1() {
+        println!("Input {keyboard_input:?}");
     }
 
     #[event(KeyboardInput)]
     fn keyboard_input2() {
-        println!("Input2 {current:?}");
+        println!("Input2 {keyboard_input:?}");
     }
 
     #[event(MouseButtonInput)]
-    fn mouse_input() {
-        println!("Mouse Button Input {current:?}");
+    fn mouse_input1() {
+        println!("Mouse Button Input {mouse_button_input:?}");
     }
 }
