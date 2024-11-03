@@ -7,7 +7,6 @@ use quote::quote;
 
 #[derive(Default)]
 pub struct SystemProcessor {
-    // definitions: Vec<(FunctionDef, Ident)>,
     definitions: HashMap<Ident, FunctionDef>,
     impl_functions: Vec<ItemFn>,
     base_functions: Vec<ItemFn>
@@ -80,12 +79,12 @@ impl SystemProcessor {
 
                 "added" => {
                     let name = tokens.last().unwrap();
-                    let ident = name.to_case(Case::Snake);
-                    let mutable = tokens[0] == "mut";
-                    let mut vec = vec![ident, ",".to_string(), "&".to_string()];
-                    if mutable { vec.push("mut".to_string()); }
-                    vec.extend(vec![name.clone(), ",".to_string(), "Added".to_string(), "<".to_string(), name.clone(), ">".to_string()]);
-                    ("named_query", vec)
+                    ("trigger", vec!["bevy::prelude::OnAdd".to_string(), ",".to_string(), name.clone()])
+                },
+
+                "removed" => {
+                    let name = tokens.last().unwrap();
+                    ("trigger", vec!["bevy::prelude::OnRemove".to_string(), ",".to_string(), name.clone()])
                 },
 
                 _ => (attr_name, tokens)
@@ -225,7 +224,7 @@ impl SystemProcessor {
 
                     // tokenize everything
                     let tokens = tokens.split(|s| s == ",")
-                        .map(|a| Ident::new(a.join(" ").as_str(), Span::call_site()))
+                        .map(|a| syn::parse2::<syn::Expr>(a.join(" ").parse().unwrap()).unwrap())
                         .collect::<Vec<_>>();
 
                     // create the trigger argument

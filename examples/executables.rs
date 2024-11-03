@@ -87,9 +87,9 @@ mod test_plugin {
         // println!("found {query1:?}");
     }
 
-    #[trigger(OnAdd, Transform)]
+    #[added(Transform)]
     fn test_transform_added(query: Query<&Transform>) {
-        let ent = query.get(trigger.entity());
-        println!("Added {ent:?}");
+        let transform = query.get(trigger.entity());
+        println!("Added {transform:?}");
     }
 }
