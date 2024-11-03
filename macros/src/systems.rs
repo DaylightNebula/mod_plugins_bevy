@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use convert_case::{Case, Casing};
 use proc_macro2::{Span, TokenStream, TokenTree};
-use syn::{Expr, Ident, ItemFn, Meta};
+use syn::{Expr, FnArg, Ident, ItemFn, Meta, Pat, ReturnType};
 use quote::quote;
 
 #[derive(Default)]
@@ -16,7 +16,6 @@ pub struct SystemProcessor {
 enum FunctionDef {
     Impl,
     Build,
-    ResourceSystem,
     ResourceFactory,
     System(Expr, Priority)
 }
@@ -68,7 +67,47 @@ impl SystemProcessor {
             match attr_name {
                 "build" => { definition = FunctionDef::Build; }
                 "resource_factory" => { definition = FunctionDef::ResourceFactory; }
-                "resource_system" => { definition = FunctionDef::ResourceSystem; }
+
+                "resource_system" => { 
+                    // add system definition
+                    definition = FunctionDef::System(
+                        syn::parse2(quote! { Startup }).expect("Failed to unwrap Update arg."), 
+                        Priority::NORMAL
+                    );
+
+                    // make sure we have a commands argument
+                    let commands = item.sig.inputs.iter().filter_map(|arg| {
+                        if let FnArg::Typed(pat) = arg {
+                            if pat.ty == syn::parse2(quote! { Commands }).unwrap() {
+                                if let Pat::Ident(ident) = *pat.pat.to_owned() {
+                                    Some(ident.ident)
+                                } else { None }
+                            } else { None }
+                        } else { None }
+                    }).next();
+
+                    // get or create commands
+                    let commands = if commands.is_some() { 
+                        commands.unwrap() 
+                    } else {
+                        item.sig.inputs.push(syn::parse2(quote! {
+                            mut commands: Commands
+                        }).unwrap());
+                        Ident::new("commands", Span::call_site())
+                    };
+
+                    // remove return
+                    item.sig.output = ReturnType::Default;
+
+                    // add code to add resource
+                    let block = item.block;
+                    item.block = syn::parse2(quote! {
+                        {
+                            let resource = #block;
+                            #commands.insert_resource(resource);
+                        }
+                    }).unwrap();
+                }
 
                 "system" => {
                     definition = build_system_enum_variant(&tokens);
@@ -77,11 +116,6 @@ impl SystemProcessor {
 
                     if exec == "enter" || exec == "exit" {
                         let input = tokens[1].to_string();
-                        // let mut vec = input.split("::").collect::<Vec<_>>();
-                        // vec.remove(vec.len() - 1);
-                        // let join = vec.join("::");
-                        // let state: TokenStream = join.parse().expect("Could not to join ::");
-                        // let state: Expr = syn::parse2(state).expect(format!("Failed to create expresion from join result. {join:?} {vec:?} {input:?}").as_str());
                         let input = Ident::new(input.as_str(), Span::call_site());
                         item.sig.inputs.push(syn::parse2(quote! {
                             current: Res<State<#input>>
@@ -145,7 +179,6 @@ impl SystemProcessor {
         let item_list = match &definition {
             FunctionDef::Impl => &mut self.impl_functions,
             FunctionDef::Build => &mut self.impl_functions,
-            FunctionDef::ResourceSystem => &mut self.base_functions,
             FunctionDef::ResourceFactory => &mut self.base_functions,
             FunctionDef::System(_, _) => &mut self.base_functions
         };
@@ -185,6 +218,16 @@ impl SystemProcessor {
             });
             let vec = vec.into_iter().map(|(_, a)| a).collect::<Vec<_>>();
             app_exts.extend(quote!{ .add_systems(#expr, (#(#vec),*).chain()) });
+        }
+
+        // add resource factory results
+        let factories = self.definitions.iter()
+            .filter_map(|(factory, def)| match def {
+                FunctionDef::ResourceFactory => Some(factory),
+                _ => None
+            });
+        for factory in factories {
+            app_exts.extend(quote! { .insert_resource(#factory()) });
         }
     }
 

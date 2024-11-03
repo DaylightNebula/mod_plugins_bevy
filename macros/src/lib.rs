@@ -5,11 +5,7 @@ use quote::quote;
 use syn::{parse_macro_input, FnArg, Ident, ItemFn, ItemMod, Type};
 use systems::SystemProcessor;
 
-mod basic;
-mod events;
 mod initialization;
-mod resources;
-mod states;
 mod systems;
 
 #[proc_macro_attribute]
@@ -38,53 +34,12 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
     let mut output = proc_macro2::TokenStream::new();
     let mut init = InitializationSystems::default();
     let mut systems = SystemProcessor::default();
-    // let mut basics = BasicSystems::default();
-    // let mut events = EventSystems::default();
-    // let mut states = StateSystems::default();
-    // let mut resources = ResourceSystems::default();
-    // let mut build_funcs = Vec::<syn::Ident>::new();
     let mut fields = Vec::<syn::Field>::new();
-    // let mut std_impl = proc_macro2::TokenStream::new();
+    let mut default_resources = Vec::<syn::Ident>::new();
 
     // assemble initial output
     for input in input.content.unwrap().1 {
         match input {
-            // // add function to output while using metadata to interpret if and which type of system this function is
-            // syn::Item::Fn(mut input) => {
-            //     // for each attribute on the function, check its metadata from its identifier
-            //     let mut add_to_std_impl = false;
-            //     for attr in input.attrs.clone() {
-            //         if let Some(meta_name) = attr.path().get_ident() {
-            //             // get metadata name
-            //             let name = input.sig.ident.clone();
-            //             let meta_name = meta_name.to_string();
-            //             let meta_name = meta_name.as_str();
-
-            //             // match meta name to appropriate interpreting function, otherwise, skip
-            //             match meta_name {
-            //                 "startup" => basics.push_startup(name),
-            //                 "update" => basics.push_update(name),
-            //                 "event" => events.push(&mut input, &attr),
-            //                 "enter" => states.push(StateType::Enter, &attr, name),
-            //                 "exit" => states.push(StateType::Exit, &attr, name),
-            //                 "resource_factory" => resources.push_factory(name),
-            //                 "resource_system" => resources.push_system(name),
-            //                 "build" => {
-            //                     add_to_std_impl = true; 
-            //                     build_funcs.push(name)
-            //                 },
-                            
-            //                 _ => {}
-            //             }
-            //         }
-            //     }
-
-            //     // add the function to the output
-            //     input.attrs.clear();
-            //     if !add_to_std_impl { output.extend(quote! { #input }); }
-            //     else { std_impl.extend(quote! { #input }); }
-            // },
-
             syn::Item::Fn(item) => systems.process_item_fn(item),
 
             syn::Item::Struct(mut struct_item) => {
@@ -100,7 +55,7 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
                         match meta_name {
                             // make the resource initialize by its default in the App
                             "init_resource" => {
-                                // resources.push_default(struct_item.ident.clone());
+                                default_resources.push(struct_item.ident.clone());
                                 false
                             },
 
@@ -145,7 +100,7 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
                         match meta_name {
                             // make the resource initialize by its default in the App
                             "init_resource" => {
-                                // resources.push_default(enum_item.ident.clone());
+                                default_resources.push(enum_item.ident.clone());
                                 false
                             },
 
@@ -228,6 +183,9 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
     }
     for base_func in systems.base_functions().iter() {
         base_funcs.extend(quote! { #base_func });
+    } 
+    for default_res in default_resources.iter() {
+        app_ext.extend(quote! { .insert_resource(#default_res::default()) });
     }
 
     // compile after struct
