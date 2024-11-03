@@ -17,7 +17,14 @@ enum FunctionDef {
     Impl,
     Build,
     ResourceFactory,
-    System(Expr, Priority)
+    System(Expr, SystemOrdering)
+}
+
+enum SystemOrdering {
+    None,
+    Priority(Priority),
+    Before(Ident),
+    After(Ident)
 }
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq)]
@@ -61,6 +68,24 @@ impl SystemProcessor {
                     vec.extend(tokens);
                     ("system", vec)
                 },
+
+                "query" => {
+                    let mut vec = vec![format!("query{query_count}"), ",".to_string()];
+                    query_count += 1;
+                    vec.extend(tokens);
+                    ("named_query", vec)
+                },
+
+                "added" => {
+                    let name = tokens.last().unwrap();
+                    let ident = name.to_case(Case::Snake);
+                    let mutable = tokens[0] == "mut";
+                    let mut vec = vec![ident, ",".to_string(), "&".to_string()];
+                    if mutable { vec.push("mut".to_string()); }
+                    vec.extend(vec![name.clone(), ",".to_string(), "Added".to_string(), "<".to_string(), name.clone(), ">".to_string()]);
+                    ("named_query", vec)
+                },
+
                 _ => (attr_name, tokens)
             };
 
@@ -73,7 +98,7 @@ impl SystemProcessor {
                     // add system definition
                     definition = FunctionDef::System(
                         syn::parse2(quote! { Startup }).expect("Failed to unwrap Update arg."), 
-                        Priority::NORMAL
+                        SystemOrdering::None
                     );
 
                     // make sure we have a commands argument
@@ -129,7 +154,7 @@ impl SystemProcessor {
                     if matches!(definition, FunctionDef::Impl) {
                         definition = FunctionDef::System(
                             syn::parse2(quote! { Update }).expect("Failed to unwrap Update arg."), 
-                            Priority::NORMAL
+                            SystemOrdering::None
                         );
                     }
 
@@ -155,24 +180,48 @@ impl SystemProcessor {
                 }
 
                 "priority" => match definition {
-                    FunctionDef::System(_, ref mut prio) => { 
-                        *prio = match tokens[0].as_str() {
-                            "LOWEST" => Priority::LOWEST,
-                            "LOW" => Priority::LOW,
-                            "NORMAL" => Priority::NORMAL,
-                            "HIGH" => Priority::HIGH,
-                            "HIGHEST" => Priority::HIGHEST,
-                            "CUSTOM" => Priority::CUSTOM(str::parse(tokens[1].as_str()).expect("Could not parse i32")),
-                            _ => panic!("Invalid priority")
-                        } 
+                    FunctionDef::System(_, ref mut ordering) => { 
+                        *ordering = SystemOrdering::Priority(
+                            match tokens[0].as_str() {
+                                "LOWEST" => Priority::LOWEST,
+                                "LOW" => Priority::LOW,
+                                "NORMAL" => Priority::NORMAL,
+                                "HIGH" => Priority::HIGH,
+                                "HIGHEST" => Priority::HIGHEST,
+                                "CUSTOM" => Priority::CUSTOM(str::parse(tokens[1].as_str()).expect("Could not parse i32")),
+                                _ => panic!("Invalid priority")
+                            }
+                        )
                     },
                     _ => panic!("Priority attribute can only be applied to systems!")
                 }
 
-                "query" => {
+                "after" => match definition {
+                    FunctionDef::System(_, ref mut ordering) => {
+                        *ordering = SystemOrdering::After(Ident::new(tokens.last().unwrap(), Span::call_site()));
+                    },
+                    _ => panic!("After attribute can only be applied to systems!")
+                }
+
+                "before" => match definition {
+                    FunctionDef::System(_, ref mut ordering) => {
+                        *ordering = SystemOrdering::Before(Ident::new(tokens.last().unwrap(), Span::call_site()));
+                    },
+                    _ => panic!("After attribute can only be applied to systems!")
+                }
+
+                "named_query" => {
+                    // if def has not been set yet, set to update
+                    if matches!(definition, FunctionDef::Impl) {
+                        definition = FunctionDef::System(
+                            syn::parse2(quote! { Update }).expect("Failed to unwrap Update arg."), 
+                            SystemOrdering::None
+                        );
+                    }
+
                     // build query tokens by splitting my commas and merging
                     // then, sort tokens into query and filter
-                    let (mut query, mut filter): (Vec<_>, Vec<_>) = tokens
+                    let (mut query, mut filter): (Vec<_>, Vec<_>) = tokens[2..]
                         .split(|s| s == ",")
                         .map(|a| a.join(" "))
                         .partition(|a| {
@@ -186,7 +235,7 @@ impl SystemProcessor {
                         });
                     
                     // get some metadata
-                    let ident = Ident::new(format!("query{query_count}").as_str(), Span::call_site());
+                    let ident = Ident::new(tokens[0].as_str(), Span::call_site());
                     let mutable = query.iter().any(|s| s.contains("& mut"));
 
                     // set query and filter
@@ -218,8 +267,6 @@ impl SystemProcessor {
                             }).unwrap());
                         }
                     }
-
-                    query_count += 1;
                 }
 
                 "on" => {
@@ -265,17 +312,52 @@ impl SystemProcessor {
 
     pub fn apply_app_exts(&mut self, app_exts: &mut TokenStream) {
         // sort systems by expression
-        let mut systems = HashMap::<Expr, Vec<(Priority, Ident)>>::new();
+        let mut prio_systems = HashMap::<Expr, Vec<(Priority, Ident)>>::new();
+        let mut unordered_systems = HashMap::<Expr, Vec<Expr>>::new();
 
         // for each definition, add only systems
         for (name, def) in self.definitions.iter_mut() {
             match def {
                 // add systems to systems tracking map
                 FunctionDef::System(expr, priority) => {
-                    if systems.contains_key(&expr) {
-                        systems.get_mut(&expr).expect("Failed to unwrap systems get.").push((*priority, name.clone()));
-                    } else {
-                        systems.insert(expr.clone(), vec![(*priority, name.clone())]);
+                    match priority {
+                        SystemOrdering::None => {
+                            if unordered_systems.contains_key(&expr) {
+                                unordered_systems.get_mut(&expr)
+                                    .expect("Failed to unwrap unordered systems get.")
+                                    .push(syn::parse2(quote! { #name }).unwrap());
+                            } else {
+                                unordered_systems.insert(expr.clone(), vec![syn::parse2(quote! { #name }).unwrap()]);
+                            }
+                        },
+
+                        SystemOrdering::Priority(priority) => {
+                            if prio_systems.contains_key(&expr) {
+                                prio_systems.get_mut(&expr).expect("Failed to unwrap systems get.").push((*priority, name.clone()));
+                            } else {
+                                prio_systems.insert(expr.clone(), vec![(*priority, name.clone())]);
+                            }
+                        },
+
+                        SystemOrdering::Before(before) => {
+                            if unordered_systems.contains_key(&expr) {
+                                unordered_systems.get_mut(&expr)
+                                    .expect("Failed to unwrap unordered systems get.")
+                                    .push(syn::parse2(quote! { #name.before(#before) }).unwrap());
+                            } else {
+                                unordered_systems.insert(expr.clone(), vec![syn::parse2(quote! { #name.before(#before) }).unwrap()]);
+                            }
+                        },
+
+                        SystemOrdering::After(after) => {
+                            if unordered_systems.contains_key(&expr) {
+                                unordered_systems.get_mut(&expr)
+                                    .expect("Failed to unwrap unordered systems get.")
+                                    .push(syn::parse2(quote! { #name.after(#after) }).unwrap());
+                            } else {
+                                unordered_systems.insert(expr.clone(), vec![syn::parse2(quote! { #name.after(#after) }).unwrap()]);
+                            }
+                        },
                     }
                 },
 
@@ -284,7 +366,7 @@ impl SystemProcessor {
         }
 
         // sort and add each systems list to app extensions
-        for (expr, mut vec) in systems.drain() {
+        for (expr, mut vec) in prio_systems.drain() {
             vec.sort_by_key(|(prio, _)| match prio {
                 Priority::LOWEST => u32::MAX,
                 Priority::LOW => u32::MAX / 4 * 3,
@@ -294,7 +376,18 @@ impl SystemProcessor {
                 Priority::CUSTOM(prio) => u32::MAX - *prio
             });
             let vec = vec.into_iter().map(|(_, a)| a).collect::<Vec<_>>();
-            app_exts.extend(quote!{ .add_systems(#expr, (#(#vec),*).chain()) });
+            if unordered_systems.contains_key(&expr) {
+                unordered_systems.get_mut(&expr)
+                    .expect("Failed to unwrap unordered systems get.")
+                    .push(syn::parse2(quote! { (#(#vec),*).chain() }).unwrap());
+            } else {
+                unordered_systems.insert(expr.clone(), vec![syn::parse2(quote! { (#(#vec),*).chain() }).unwrap()]);
+            }
+        }
+
+        // add systems by expr
+        for (expr, vec) in unordered_systems.drain() {
+            app_exts.extend(quote! { .add_systems(#expr, (#(#vec),*)) });
         }
 
         // add resource factory results
@@ -338,7 +431,7 @@ fn build_system_enum_variant(tokens: &[String]) -> FunctionDef {
         }
         _ => panic!("Unknown build system type {:?}", tokens[0])
     };
-    return FunctionDef::System(expr, Priority::NORMAL);
+    return FunctionDef::System(expr, SystemOrdering::None);
 }
 
 fn meta_to_strings(meta: Meta) -> Vec<String> {

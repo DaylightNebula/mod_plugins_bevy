@@ -84,6 +84,11 @@ mod test_plugin {
     #[query(&mut Transform, With<Visibility>)]
     #[on(query1)]
     fn test_cube() {
-        println!("found {query1:?}");
+        // println!("found {query1:?}");
+    }
+
+    #[added(mut Transform)]
+    fn test_transform_added() {
+        println!("Added {transform:?}");
     }
 }

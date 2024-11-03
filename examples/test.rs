@@ -65,10 +65,9 @@ mod test_plugin {
     }
 
     #[system(update)]
-    #[priority(CUSTOM(50))]
     fn update0() { println!("Update 0") }
     
     #[system(update)]
-    #[priority(HIGHEST)]
+    #[before(update0)]
     fn update1() { println!("Update 1") }
 }
