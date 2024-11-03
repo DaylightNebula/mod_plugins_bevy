@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use convert_case::{Case, Casing};
 use proc_macro2::{Span, TokenStream, TokenTree};
-use syn::{Expr, FnArg, Ident, ItemFn, Meta, Pat, ReturnType};
+use syn::{punctuated::Punctuated, Expr, FnArg, Ident, ItemFn, Meta, Pat, ReturnType};
 use quote::quote;
 
 #[derive(Default)]
@@ -17,7 +17,8 @@ enum FunctionDef {
     Impl,
     Build,
     ResourceFactory,
-    System(Expr, SystemOrdering)
+    System(Expr, SystemOrdering),
+    Observer
 }
 
 enum SystemOrdering {
@@ -218,6 +219,27 @@ impl SystemProcessor {
                     _ => panic!("After attribute can only be applied to systems!")
                 }
 
+                "trigger" => {
+                    // set definition to observer
+                    definition = FunctionDef::Observer;
+
+                    // tokenize everything
+                    let tokens = tokens.split(|s| s == ",")
+                        .map(|a| Ident::new(a.join(" ").as_str(), Span::call_site()))
+                        .collect::<Vec<_>>();
+
+                    // create the trigger argument
+                    let trigger = syn::parse2(quote! {
+                        trigger: Trigger<#(#tokens),*>
+                    }).unwrap();
+
+                    // create new punctuated list for inputs
+                    let mut vec = Punctuated::new();
+                    vec.push(trigger);
+                    vec.extend(item.sig.inputs);
+                    item.sig.inputs = vec;
+                }
+
                 "named_query" => {
                     // if def has not been set yet, set to update
                     if matches!(definition, FunctionDef::Impl) {
@@ -312,7 +334,8 @@ impl SystemProcessor {
             FunctionDef::Impl => &mut self.impl_functions,
             FunctionDef::Build => &mut self.impl_functions,
             FunctionDef::ResourceFactory => &mut self.base_functions,
-            FunctionDef::System(_, _) => &mut self.base_functions
+            FunctionDef::System(_, _) => &mut self.base_functions,
+            FunctionDef::Observer => &mut self.base_functions
         };
         self.definitions.insert(item.sig.ident.clone(), definition);
         item_list.push(item);
@@ -416,6 +439,15 @@ impl SystemProcessor {
             });
         for factory in factories {
             app_exts.extend(quote! { .insert_resource(#factory()) });
+        }
+
+        let observers = self.definitions.iter()
+            .filter_map(|(observer, def)| match def {
+                FunctionDef::Observer => Some(observer),
+                _ => None
+            });
+        for observer in observers {
+            app_exts.extend(quote! { .observe(#observer) });
         }
     }
 
