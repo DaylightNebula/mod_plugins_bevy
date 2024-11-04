@@ -1,7 +1,10 @@
+=== 0.2 Goals ===
+[ ] `#[in(state)]` macro
+
 === Prefabs and Scopes ===
 [ ] Define prefabs like a macro + structure
-    [ ] Creation functions
-    [ ] Marked as global vs local (default: local to state created with)
+    [x] Creation functions
+    [x] Marked as global vs local (default: local to state created with)
     [ ] When #[plugin] initializes state, add observer to remove locals belonging to the old state
     [ ] Match prefab functions + types for queries
  - Effectively a bundle + some functions and types

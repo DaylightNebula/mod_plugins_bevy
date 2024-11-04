@@ -38,5 +38,8 @@ pub trait Executable<O> {
     fn execute(self: Box<Self>, world: &mut World) -> O;
 }
 
-#[derive(Component)]
+#[derive(Component, Default)]
 pub struct ScopeGlobal;
+
+#[derive(Component, Default)]
+pub struct ScopeLocal<S: States + Default>(pub S);

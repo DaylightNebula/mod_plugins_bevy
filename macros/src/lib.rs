@@ -1,9 +1,8 @@
-use bevy::utils::default;
 use initialization::InitializationSystems;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, Fields, FnArg, Ident, ItemFn, ItemMod, ItemStruct, Token, Type};
+use syn::{parse_macro_input, Fields, FnArg, Ident, ItemFn, ItemMod, ItemStruct, Token, Type};
 use systems::SystemProcessor;
 
 mod initialization;
@@ -262,15 +261,19 @@ pub fn prefab(attr: TokenStream, input: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(input as ItemStruct);
     let tokens = systems::tokens_to_strings(attr.into());
 
-    // get scope
+    // setup scope if given and using named fields
     if let Fields::Named(fields) = &mut input.fields {
+        // get index of scope attribute and check if it was given
         let scope_idx = tokens.iter()
             .enumerate()
             .find(|a| a.1 == "scope")
             .map(|a| a.0);
         if let Some(scope_idx) = scope_idx {
+            // get the scope token and add
             if let Some(scope) = tokens.iter().nth(scope_idx + 1) {
+                // add field based on scope given
                 match scope.as_str() {
+                    // add global field
                     "global" => {
                         fields.named.push(syn::Field {
                             attrs: vec![],
@@ -281,13 +284,28 @@ pub fn prefab(attr: TokenStream, input: TokenStream) -> TokenStream {
                             ty: syn::parse2(quote! { mod_plugins::resources::ScopeGlobal }).unwrap()
                         });
                     },
-                    "local" => todo!("Define local scope"),
+
+                    // add local field
+                    "local" => {
+                        let state = Ident::new(tokens[scope_idx + 2].as_str(), Span::call_site());
+                        fields.named.push(syn::Field {
+                            attrs: vec![],
+                            vis: syn::Visibility::Public(<Token![pub]>::default()),
+                            mutability: syn::FieldMutability::None,
+                            ident: Some(Ident::new("scope", Span::call_site())),
+                            colon_token: Some(<Token![:]>::default()),
+                            ty: syn::parse2(quote! { mod_plugins::resources::ScopeLocal<#state> }).unwrap()
+                        })
+                    },
+
+                    // panic if unknown scope
                     _ => panic!("Unknown scope {scope:?}")
                 }
             }
         }
     }
 
+    // compile and return result
     TokenStream::from(quote! {
         #[derive(Bundle, Default)]
         #input

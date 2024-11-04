@@ -1,17 +1,6 @@
 use bevy::{prelude::*, render::{settings::{Backends, RenderCreation, WgpuSettings}, RenderPlugin}};
 use mod_plugins::macros::*;
 
-#[prefab(scope(global))]
-pub struct CubePrefab {
-    pub mesh: Handle<Mesh>,
-    pub material: Handle<StandardMaterial>,
-    pub transform: Transform,
-    pub global_transform: GlobalTransform,
-    pub visibility: Visibility,
-    pub inherited_visibility: InheritedVisibility,
-    pub view_visibility: ViewVisibility
-}
-
 fn main() {
     let mut backends = Backends::all();
     backends.remove(Backends::DX12);
@@ -34,6 +23,27 @@ fn main() {
 
 #[plugin]
 mod test_plugin {
+    use bevy::input::{keyboard::KeyboardInput, ButtonState};
+
+
+    #[init_state]
+    #[derive(States, Clone, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
+    pub enum CubeState { 
+        #[default] Exists, 
+        DoesNotExist 
+    }
+
+    #[prefab(scope local CubeState)]
+    pub struct CubePrefab {
+        pub mesh: Handle<Mesh>,
+        pub material: Handle<StandardMaterial>,
+        pub transform: Transform,
+        pub global_transform: GlobalTransform,
+        pub visibility: Visibility,
+        pub inherited_visibility: InheritedVisibility,
+        pub view_visibility: ViewVisibility
+    }
+
     #[startup]
     fn setup(
         mut commands: Commands,
@@ -63,13 +73,33 @@ mod test_plugin {
             transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
         });
+    }
 
-        // add prefab
+    #[enter(CubeState::Exists)]
+    fn make_cube_exist(
+        mut commands: Commands,
+        mut meshes: ResMut<Assets<Mesh>>,
+        mut materials: ResMut<Assets<StandardMaterial>>
+    ) {
         commands.spawn(CubePrefab {
             mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
             material: materials.add(Color::srgb_u8(124, 144, 255)),
             transform: Transform::from_xyz(0.0, 0.5, 0.0),
             ..Default::default()
         });
+    }
+
+    #[event(KeyboardInput)]
+    fn keyboard_input(
+        state: Res<State<CubeState>>,
+        mut next_state: ResMut<NextState<CubeState>>
+    ) {
+        if keyboard_input.key_code == KeyCode::Space && keyboard_input.state == ButtonState::Released {
+            match state.get() {
+                CubeState::Exists => next_state.set(CubeState::DoesNotExist),
+                CubeState::DoesNotExist => next_state.set(CubeState::Exists)
+            }
+            println!("Swapping from {:?}", state.get());
+        }
     }
 }
