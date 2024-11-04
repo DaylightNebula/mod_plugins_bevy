@@ -1,5 +1,6 @@
-=== 0.2 Goals ===
+=== Remaining 0.2 Goals ===
 [ ] `#[in(state)]` macro
+[ ] `#[init_state]` include derives
 
 === Prefabs and Scopes ===
 [ ] Define prefabs like a macro + structure
