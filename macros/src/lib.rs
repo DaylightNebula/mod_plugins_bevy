@@ -254,3 +254,8 @@ pub fn executable(attr: TokenStream, input: TokenStream) -> TokenStream {
         #func
     })
 }
+
+#[proc_macro_derive(Prefab)]
+pub fn prefab(input: TokenStream) -> TokenStream {
+    TokenStream::from(quote! {})
+}
