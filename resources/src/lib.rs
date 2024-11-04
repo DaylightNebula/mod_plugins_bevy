@@ -37,3 +37,6 @@ impl <T: Clone + Debug> Current<T> {
 pub trait Executable<O> {
     fn execute(self: Box<Self>, world: &mut World) -> O;
 }
+
+#[derive(Component)]
+pub struct ScopeGlobal;

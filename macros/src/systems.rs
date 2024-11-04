@@ -490,7 +490,7 @@ fn meta_to_strings(meta: Meta) -> Vec<String> {
     }
 }
 
-fn tokens_to_strings(tokens: TokenStream) -> Vec<String> {
+pub fn tokens_to_strings(tokens: TokenStream) -> Vec<String> {
     return tokens
         .into_iter()
         .filter_map(|a| match a {
