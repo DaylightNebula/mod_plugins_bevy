@@ -2394,7 +2394,7 @@ dependencies = [
 
 [[package]]
 name = "mod_plugins"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "bevy",
  "mod_plugins_macros",
