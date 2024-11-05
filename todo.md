@@ -1,5 +1,5 @@
 === Remaining 0.2 Goals ===
-[ ] `#[in(state)]` macro
+[x] `#[state(state)]` macro
 [x] `#[init_state]` include derives
 
 === Prefabs and Scopes ===

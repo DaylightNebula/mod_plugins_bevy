@@ -25,7 +25,8 @@ enum SystemOrdering {
     Priority(Priority),
     Before(Ident),
     After(Ident),
-    Pipe(Ident)
+    Pipe(Ident),
+    InState(Expr)
 }
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq)]
@@ -218,6 +219,14 @@ impl SystemProcessor {
                     _ => panic!("After attribute can only be applied to systems!")
                 }
 
+                "state" => match definition {
+                    FunctionDef::System(_, ref mut ordering) => {
+                        println!("Tokens {tokens:?}");
+                        *ordering = SystemOrdering::InState(syn::parse2(tokens.join("").parse().unwrap()).unwrap());
+                    },
+                    _ => panic!("After attribute can only be applied to systems!")
+                }
+
                 "trigger" => {
                     // set definition to observer
                     definition = FunctionDef::Observer;
@@ -398,6 +407,16 @@ impl SystemProcessor {
                                 unordered_systems.insert(expr.clone(), vec![syn::parse2(quote! { #name.pipe(#pipe) }).unwrap()]);
                             }
                         },
+
+                        SystemOrdering::InState(state) => {
+                            if unordered_systems.contains_key(&expr) {
+                                unordered_systems.get_mut(&expr)
+                                    .expect("Failed to unwrap unordered systems get.")
+                                    .push(syn::parse2(quote! { #name.run_if(in_state(#state)) }).unwrap());
+                            } else {
+                                unordered_systems.insert(expr.clone(), vec![syn::parse2(quote! { #name.run_if(in_state(#state)) }).unwrap()]);
+                            }
+                        }
                     }
                 },
 
