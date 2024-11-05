@@ -119,7 +119,7 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
                                 let ident = &enum_item.ident;
                                 enum_item.variants.iter().for_each(|variant| {
                                     let variant = &variant.ident;
-                                    let func_name = Ident::new(format!("remove_{}", variant.to_string()).to_case(convert_case::Case::Snake).as_str(), Span::call_site());
+                                    let func_name = Ident::new(format!("_remove_{}", variant.to_string()).to_case(convert_case::Case::Snake).as_str(), Span::call_site());
                                     let enter_function = quote! {
                                         #[enter(#ident::#variant)]
                                         fn #func_name(
