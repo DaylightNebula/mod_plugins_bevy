@@ -1,3 +1,4 @@
+use convert_case::Casing;
 use initialization::InitializationSystems;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
@@ -64,16 +65,6 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
                                 false
                             }
 
-                            "init_state" => {
-                                if let Ok(list) = attr.meta.require_list() {
-                                    init.states_nodef.push(syn::parse2(list.tokens.clone()).unwrap());
-                                } else {
-                                    init.states_def.push(struct_item.ident.clone());
-                                }
-
-                                false
-                            }
-
                             "register" => {
                                 init.registered.push(struct_item.ident.clone());
                                 false
@@ -88,6 +79,8 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
             },
 
             syn::Item::Enum(mut enum_item) => {
+                let mut extras = proc_macro2::TokenStream::new();
+
                 // go through each attribute, choosing whether we should keep it or not (Rust how no idea what our custom attributes are and will cancel)
                 enum_item.attrs.retain(|attr| {
                     // attempt to get the attributes path as its identifier, otherwise, return keep
@@ -110,11 +103,38 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
                             }
 
                             "init_state" => {
+                                // add state to definitions lists
                                 if let Ok(list) = attr.meta.require_list() {
                                     init.states_nodef.push(syn::parse2(list.tokens.clone()).unwrap());
                                 } else {
                                     init.states_def.push(enum_item.ident.clone());
                                 }
+
+                                // add derive macros
+                                extras.extend(quote! {
+                                    #[derive(States, Clone, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
+                                });
+
+                                // add system for each variant
+                                let ident = &enum_item.ident;
+                                enum_item.variants.iter().for_each(|variant| {
+                                    let variant = &variant.ident;
+                                    let func_name = Ident::new(format!("remove_{}", variant.to_string()).to_case(convert_case::Case::Snake).as_str(), Span::call_site());
+                                    let enter_function = quote! {
+                                        #[enter(#ident::#variant)]
+                                        fn #func_name(
+                                            mut commands: bevy::prelude::Commands,
+                                            mut query: bevy::prelude::Query<(bevy::prelude::Entity, &mod_plugins::resources::ScopeLocal<#ident>)>
+                                        ) {
+                                            query.iter().for_each(|(entity, scope)| {
+                                                if (scope.0 != #ident::#variant) {
+                                                    commands.entity(entity).despawn_recursive();
+                                                }
+                                            });
+                                        }
+                                    };
+                                    systems.process_item_fn(syn::parse2(enter_function).expect("Could not compile enter remove state function."));
+                                });
 
                                 false
                             }
@@ -129,7 +149,10 @@ pub fn plugin(attr: TokenStream, input: TokenStream) -> TokenStream {
                     } else { true }
                 });
 
-                output.extend(quote! { #enum_item });
+                output.extend(quote! { 
+                    #extras 
+                    #enum_item 
+                })
             },
 
             syn::Item::Type(type_item) => {

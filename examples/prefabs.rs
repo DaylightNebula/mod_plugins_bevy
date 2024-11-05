@@ -24,12 +24,12 @@ fn main() {
 #[plugin]
 mod test_plugin {
     use bevy::input::{keyboard::KeyboardInput, ButtonState};
-
+    use mod_plugins_resources::ScopeLocal;
 
     #[init_state]
-    #[derive(States, Clone, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
     pub enum CubeState { 
-        #[default] Exists, 
+        #[default] 
+        Exists, 
         DoesNotExist 
     }
 
@@ -85,6 +85,7 @@ mod test_plugin {
             mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
             material: materials.add(Color::srgb_u8(124, 144, 255)),
             transform: Transform::from_xyz(0.0, 0.5, 0.0),
+            scope: ScopeLocal(CubeState::Exists),
             ..Default::default()
         });
     }

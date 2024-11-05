@@ -1,15 +1,15 @@
 === Remaining 0.2 Goals ===
 [ ] `#[in(state)]` macro
-[ ] `#[init_state]` include derives
+[x] `#[init_state]` include derives
 
 === Prefabs and Scopes ===
 [ ] Define prefabs like a macro + structure
     [x] Creation functions
     [x] Marked as global vs local (default: local to state created with)
-    [ ] When #[plugin] initializes state, add observer to remove locals belonging to the old state
+    [x] When #[plugin] initializes state, add observer to remove locals belonging to the old state
     [ ] Match prefab functions + types for queries
  - Effectively a bundle + some functions and types
-[ ] Global vs local for scene management
+[x] Global vs local for state management
  - Functions/events to auto remove non-global objects on scene change
  - Local objects should track what scene they are meant to be apart of
  - Local objects may be able to be apart of multiple scenes
