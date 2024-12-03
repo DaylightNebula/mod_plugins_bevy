@@ -1,6 +1,6 @@
 [package]
 name = "mod_plugins_macros"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 
 description = "Reduce plugin boilerplate in the Bevy game engine."
@@ -11,7 +11,7 @@ repository = "https://github.com/DaylightNebula/mod_plugins_bevy"
 proc-macro = true
 
 [dependencies]
-bevy = "0.14.2"
+bevy = "0.15.0"
 syn = "2.0.53"
 proc-macro2 = "1.0.79"
 quote = "1.0.35"

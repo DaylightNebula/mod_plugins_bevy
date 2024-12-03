@@ -465,7 +465,7 @@ impl SystemProcessor {
                 _ => None
             });
         for observer in observers {
-            app_exts.extend(quote! { .observe(#observer) });
+            app_exts.extend(quote! { .add_observer(#observer) });
         }
     }
 
